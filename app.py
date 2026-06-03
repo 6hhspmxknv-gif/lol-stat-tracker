@@ -88,9 +88,9 @@ if 'df_stats' in st.session_state:
             st.line_chart(df_chart_cs)
             
         with col_graph2:
-            # --- CAS DU JUNGLE (Amumu, Kha'Zix, Ambessa en Jngl) ---
+            # --- CAS DU JUNGLE (Amumu, Kha'Zix, Ambessa) ---
             if role_principal == "JUNGLE":
-                st.subheader("🌲 Focus Jungle : Gestion des Objectifs Neutres")
+                st.subheader("🌲 Focus Jungle : Gestion des Objectifs")
                 
                 total_pris_moyen = round(df_champ['Obj_Pris'].mean(), 1)
                 total_voles_cumule = int(df_champ['Obj_Voles'].sum())
@@ -99,10 +99,20 @@ if 'df_stats' in st.session_state:
                 col_obj1.metric("Moyenne Obj. Pris / game", total_pris_moyen)
                 col_obj2.metric("Total Objectifs Volés 🏴‍☠️", total_voles_cumule)
                 
-                df_chart_obj = df_champ[['Obj_Pris', 'Obj_Voles']].copy()
-                df_chart_obj.index = df_chart_obj.index + 1
-                st.bar_chart(df_chart_obj)
-                st.caption("Barre bleue : Monstres épiques sécurisés. Barre rouge : Vols au Smite réussis.")
+                # Si c'est Amumu, on affiche ses CC à la place des dégâts
+                if champion_selectionne == "Amumu":
+                    st.subheader("💤 Complément Amumu : Temps de CC total (sec)")
+                    df_chart_cc = df_champ[['Temps_CC_Infligé']].copy()
+                    df_chart_cc.index = df_chart_cc.index + 1
+                    st.bar_chart(df_chart_cc)
+                    st.caption("Mesure l'efficacité de vos bandelettes et de vos ultimes en combat.")
+                else:
+                    # Pour Kha'Zix et Ambessa, on garde les dégâts aux champions
+                    st.subheader("⚔️ Complément Jungle : Dégâts infligés aux Champions")
+                    df_chart_champ = df_champ[['Dégâts_Champions']].copy()
+                    df_chart_champ.index = df_chart_champ.index + 1
+                    st.bar_chart(df_chart_champ)
+                    st.caption("Mesure votre agressivité et votre impact dans les escarmouches.")
 
             # --- CAS DU TOP (Yorick ou Rôle Top) ---
             elif champion_selectionne == "Yorick" or role_principal == "TOP":
@@ -111,13 +121,6 @@ if 'df_stats' in st.session_state:
                 df_chart_dmg.index = df_chart_dmg.index + 1
                 st.bar_chart(df_chart_dmg)
                 st.caption("Votre objectif en split-push (Yorick) est de maximiser cette barre à chaque partie.")
-                
-            elif champion_selectionne == "Amumu":
-                st.subheader("💤 Focus Amumu : Temps de CC total (sec)")
-                df_chart_cc = df_champ[['Temps_CC_Infligé']].copy()
-                df_chart_cc.index = df_chart_cc.index + 1
-                st.bar_chart(df_chart_cc)
-                st.caption("Mesure l'efficacité de vos bandelettes et de vos ultimes en combat.")
                 
             else:
                 st.subheader("⚔️ Focus Dégâts infligés aux Champions")
