@@ -26,7 +26,7 @@ if st.sidebar.button("🚀 Lancer l'analyse"):
     else:
         with st.spinner(f"Récupération des données pour {game_name}#{tag_line}..."):
             try:
-                # On force la suppression des anciennes stats de la session pour éviter les mélanges
+                # Nettoyage des anciennes données de la session
                 if 'df_stats' in st.session_state:
                     del st.session_state['df_stats']
                 
@@ -37,7 +37,6 @@ if st.sidebar.button("🚀 Lancer l'analyse"):
                     st.warning("Aucune partie de classée récente (Solo/Duo) trouvée pour ce joueur.")
                 else:
                     st.session_state['df_stats'] = df
-                    # On stocke aussi le nom du joueur analysé pour vérification
                     st.session_state['current_player'] = f"{game_name}#{tag_line}"
                     st.success(f"Données de {game_name} chargées avec succès !")
             except Exception as e:
@@ -50,14 +49,14 @@ if 'df_stats' in st.session_state:
     df = st.session_state['df_stats']
     st.info(f"📊 Analyse des données actuellement chargées pour : **{st.session_state.get('current_player', 'Inconnu')}**")
     
-    # Filtre par champion
+    # Extraction et tri des champions trouvés
     champions_disponibles = sorted(df['Champion'].unique())
     
     col_select, _ = st.columns([2, 2])
     with col_select:
         champion_selectionne = st.selectbox("🎯 Choisis le champion à analyser :", champions_disponibles)
     
-    # Filtrage du tableau de données pour le champion choisi
+    # Filtrage du tableau pour le champion choisi
     df_champ = df[df['Champion'] == champion_selectionne].reset_index(drop=True)
     
     if df_champ.empty:
@@ -68,7 +67,7 @@ if 'df_stats' in st.session_state:
         avg_cs = round(df_champ['CS_Min'].mean(), 2)
         avg_kp = round(df_champ['KP_Pourcent'].mean(), 1)
         
-        # Affichage des KPIs sous forme de tuiles (Metrics)
+        # Affichage des tuiles KPIs majeures
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Parties Jouées", len(df_champ))
         col2.metric("Winrate", f"{winrate}%")
@@ -77,22 +76,36 @@ if 'df_stats' in st.session_state:
         
         st.markdown("---")
         
-        # --- GRAPHIQUES SPÉCIFIQUES AUX RÔLES ---
-        # Détection automatique du rôle (Jungle ou Top)
+        # Détection automatique du rôle (Jungle, Top, etc.)
         role_principal = df_champ['Rôle'].mode()[0] if not df_champ['Rôle'].empty else "UNKNOWN"
         
         col_graph1, col_graph2 = st.columns(2)
         
         with col_graph1:
             st.subheader("📈 Évolution du CS/Min par match")
-            # Utilisation de l'index + 1 pour afficher "Match 1, Match 2..." au lieu des IDs cryptiques de Riot
             df_chart_cs = df_champ[['CS_Min']].copy()
             df_chart_cs.index = df_chart_cs.index + 1
             st.line_chart(df_chart_cs)
             
         with col_graph2:
-            # Affichage personnalisé selon le champion (Yorick vs Junglers)
-            if champion_selectionne == "Yorick" or role_principal == "TOP":
+            # --- CAS DU JUNGLE (Amumu, Kha'Zix, Ambessa en Jngl) ---
+            if role_principal == "JUNGLE":
+                st.subheader("🌲 Focus Jungle : Gestion des Objectifs Neutres")
+                
+                total_pris_moyen = round(df_champ['Obj_Pris'].mean(), 1)
+                total_voles_cumule = int(df_champ['Obj_Voles'].sum())
+                
+                col_obj1, col_obj2 = st.columns(2)
+                col_obj1.metric("Moyenne Obj. Pris / game", total_pris_moyen)
+                col_obj2.metric("Total Objectifs Volés 🏴‍☠️", total_voles_cumule)
+                
+                df_chart_obj = df_champ[['Obj_Pris', 'Obj_Voles']].copy()
+                df_chart_obj.index = df_chart_obj.index + 1
+                st.bar_chart(df_chart_obj)
+                st.caption("Barre bleue : Monstres épiques sécurisés. Barre rouge : Vols au Smite réussis.")
+
+            # --- CAS DU TOP (Yorick ou Rôle Top) ---
+            elif champion_selectionne == "Yorick" or role_principal == "TOP":
                 st.subheader("🧱 Focus Toplane : Dégâts aux Bâtiments")
                 df_chart_dmg = df_champ[['Dégâts_Bâtiments']].copy()
                 df_chart_dmg.index = df_chart_dmg.index + 1
@@ -106,17 +119,15 @@ if 'df_stats' in st.session_state:
                 st.bar_chart(df_chart_cc)
                 st.caption("Mesure l'efficacité de vos bandelettes et de vos ultimes en combat.")
                 
-            else: # Kha'Zix, Ambessa ou autre Jungler
-                st.subheader("⚔️ Focus Jungle : Dégâts infligés aux Champions")
+            else:
+                st.subheader("⚔️ Focus Dégâts infligés aux Champions")
                 df_chart_champ = df_champ[['Dégâts_Champions']].copy()
                 df_chart_champ.index = df_chart_champ.index + 1
                 st.bar_chart(df_chart_champ)
-                st.caption("Mesure votre agressivité et votre impact dans les escarmouches.")
 
-        # --- HISTORIQUE BRUT ---
+        # --- HISTORIQUE BRUT COMPLET ---
         st.subheader("📋 Tableau détaillé des parties (Vérification)")
         df_affichage = df_champ[['Champion', 'Victoire', 'Kills', 'Deaths', 'Assists', 'CS_Min', 'KP_Pourcent']].copy()
-        # Remplacement des True/False par Victoire/Défaite pour que ça soit plus propre
         df_affichage['Victoire'] = df_affichage['Victoire'].map({True: 'Victoire', False: 'Défaite'})
         st.dataframe(df_affichage, use_container_width=True)
 else:

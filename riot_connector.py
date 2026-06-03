@@ -5,18 +5,19 @@ def fetch_player_stats(api_key, game_name, tag_line, region="euw1", match_count=
     """
     Récupère les derniers matchs d'un joueur et extrait les KPIs pour le Jungle/Top.
     """
+    # Initialisation des deux Watchers nécessaires pour le compte et le jeu
     account_watcher = RiotWatcher(api_key)
     lol_watcher = LolWatcher(api_key)
     
     try:
-        # Détermination de la zone géographique continentale
+        # Détermination de la zone géographique continentale (obligatoire pour Match-V5)
         geo_region = "europe" if region in ["euw1", "eun1", "tr1", "ru"] else "americas"
         
-        # 1. Récupération du compte via RiotWatcher
+        # 1. Récupération du compte via l'API Account (Riot ID globale)
         account = account_watcher.account.by_riot_id(geo_region, game_name, tag_line)
         puuid = account['puuid']
         
-        # 2. CORRECTION : Utilisation de matchlist_by_puuid pour Match-V5
+        # 2. Récupération des Match IDs en Solo/Duo (Queue 420)
         match_ids = lol_watcher.match.matchlist_by_puuid(geo_region, puuid, queue=420, count=match_count)
         
         if not match_ids:
@@ -28,22 +29,37 @@ def fetch_player_stats(api_key, game_name, tag_line, region="euw1", match_count=
         for match_id in match_ids:
             match_detail = lol_watcher.match.by_id(geo_region, match_id)
             
+            # Durée de la partie en minutes
             game_duration_min = match_detail['info']['gameDuration'] / 60
             
             for participant in match_detail['info']['participants']:
                 if participant['puuid'] == puuid:
                     
+                    # Calcul du CS/Min
                     total_cs = participant['totalMinionsKilled'] + participant['neutralMinionsKilled']
                     cs_min = total_cs / game_duration_min if game_duration_min > 0 else 0
                     
+                    # Calcul de la participation aux kills (KP%)
                     team_id = participant['teamId']
                     team_kills = sum(p['kills'] for p in match_detail['info']['participants'] if p['teamId'] == team_id)
                     kp = ((participant['kills'] + participant['assists']) / team_kills) * 100 if team_kills > 0 else 0
                     
+                    # Extraction des challenges et objectifs spécifiques
+                    challenges = participant.get('challenges', {})
+                    
+                    # Calcul des objectifs pris (Dragons + Barons + Larves/Hérald)
+                    dragons_pris = participant.get('dragonKills', 0)
+                    barons_pris = participant.get('baronKills', 0)
+                    hond_pris = participant.get('hordePoolMonsterKills', 0) 
+                    total_pris = dragons_pris + barons_pris + hond_pris
+                    
+                    # Objectifs volés à l'adversaire
+                    objectifs_voles = participant.get('objectivesStolen', 0)
+                    
                     stats_list.append({
                         'Match_ID': match_id,
                         'Champion': participant['championName'],
-                        'Rôle': participant['teamPosition'],
+                        'Rôle': participant['teamPosition'], # TOP, JUNGLE, etc.
                         'Victoire': participant['win'],
                         'Kills': participant['kills'],
                         'Deaths': participant['deaths'],
@@ -52,7 +68,9 @@ def fetch_player_stats(api_key, game_name, tag_line, region="euw1", match_count=
                         'KP_Pourcent': round(kp, 1),
                         'Dégâts_Bâtiments': participant['damageDealtToBuildings'],
                         'Dégâts_Champions': participant['totalDamageDealtToChampions'],
-                        'Temps_CC_Infligé': participant['totalTimeCCDealt']
+                        'Temps_CC_Infligé': participant['totalTimeCCDealt'],
+                        'Obj_Pris': total_pris,
+                        'Obj_Voles': objectifs_voles
                     })
                     
         return pd.DataFrame(stats_list)
